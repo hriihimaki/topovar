@@ -2,11 +2,11 @@
 library(RSAGA)
 library(parallel)
 
+# Set workspace
+my_workspace <-  getwd() #or e.g. D:/topovar 
+
 # Set SAGA GIS location:
 SAGA_path <- "C:/Program Files/QGIS 3.4/apps/saga-ltr" 
 
-# Set cores 
-n_cores <- detectCores()#-1
-
 # Set my environment
-myenv <- rsaga.env(workspace=getwd(), path=SAGA_path, cores = n_cores)
+myenv <- rsaga.env(workspace=my_workspace, path=SAGA_path, parallel = T)
