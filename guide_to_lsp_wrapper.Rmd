@@ -1,0 +1,241 @@
+---
+title: "Calculating Topographic Variables"
+author: "Henri Riihimaki"
+date: "10 February 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This documents shows step by step instructions on how to calculate topographic variables (a.k.a. Land Surface Parameters) from a DEM. The example DEM is provided by the National Land Survey of Finland [1,2]. Other DEM, such as Arctic DEM could be used as well [3]. 
+
+The variables are calculated by using SAGA GIS (*v. 2.3.2*). The RSAGA package (*v.1.3.0*) is used for accessing SAGA GIS functionalities from R (v.3.5.1). Note that some functions have different names in different SAGA GIS versions. 
+
+Links:  
+[1] https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/expert-users/product-descriptions/elevation-model-2-m  
+[2] https://tiedostopalvelu.maanmittauslaitos.fi/tp/kartta?lang=en  
+[3] https://www.pgc.umn.edu/data/arcticdem/  
+
+
+#### Setting up RSAGA
+First, Locate the SAGA installation from your computer and copy its path to SAGA_path -object. You can also reduce the number of cores used for processing by setting updating the n_cores-object. Install the libraries if needed. If this tutorial doesn't work for you, start troubleshooting by checking the used versions.
+
+```{r Load libraries, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+#install.packages("RSAGA")
+library(RSAGA)
+
+# Set SAGA GIS location:
+SAGA_path <- "C:/Program Files/QGIS 2.18/apps/saga-ltr" # v. 2.3.2 
+  #"C:/OSGeo4W64/apps/saga/"
+
+# Set SAGA GIS environment
+# Tested with SAGA v. 2.1.2
+(myenv <- rsaga.env(workspace=getwd(), path=SAGA_path, parallel = TRUE))
+
+```
+
+#### Run the LSP-function
+Next, run the lsp_wrapper.R script. It creates lsp-function, which calculates wanted land surface parameters. 
+
+You can see the function by running lsp in the console
+
+```{r create the function}
+source("lsp_wrapper_s232.R")
+
+# Check function
+#lsp # NOT RUN
+```
+
+
+
+#### Using the lsp-function.
+The function currently supports the following variables:    
+1. Hillshade (hs)    
+2. Slope (slope)  
+3. Topographic Wetness Index (twi)  
+4. Topographic Position Index (tpi)  
+5. Relative elevation (rel_ele)  
+6. Potential Incoming Solar Radiation (pisr)  
+
+By default it calculates none of them. The function will calculate each variable once an output name has been defined. (e.g. lsp(in_dem = "dem.tif", twi = "my_twi_raster"). The output rasters are in SAGA GIS format.
+
+The main idea of the function is that:  
+1) the algorithms and parameters *are fixed* and reproduciple (See references at the end of the file)
+2) it is easier and faster to use, than setting up everything each time LSP's are needed.
+
+```{r check the function, echo = FALSE}
+#lsp
+```
+
+
+**Basics, hillshade and slope**  
+
+Next, we will use the LiDAR DEM provided by the NLS to process some basic variables. Note that the function only writes raster to processing folder. The files have to be read to R separately. The code-block below shows how to calculate hillshade and slope, and how to read the back to R (if desired).
+
+
+**Example 1:**
+```{r Calculate slope, echo = T, results = 'hide'}
+# Calculate slope from DEM
+lsp(in_dem = "test_dem.tif", slope = "test_slope", hillshade = "test_hillshade")
+
+# read raster to R and check result
+dem <- raster("dem.sdat")
+slo <- raster("test_slope.sdat")
+hs <- raster("test_hillshade.sdat")
+
+# Plot DEM
+plot(dem, col = terrain.colors(255), main = "Elevation")
+# Add transparent hillshade on top of the DEM
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+
+# Plot slope
+plot(slo, col = terrain.colors(255), main ="Slope (radians)")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+
+```
+  
+We can also convert the slope results, which is in radians, to degrees easily:
+```{r Calculate slope in deg, echo = T, results = 'hide'}
+slo_deg <- slo/(pi/180)
+plot(slo_deg, col = terrain.colors(255), main ="Slope (degrees)")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+
+```
+  
+**Topographic Position Index and relative elevation**
+
+Next, we'll process multiple lsp at the same time. Radius for TPI and relative elevation can be defined separately. In this example we calculate 2 them both with two different radii. If radius is not defined separately a default value of 50 m will be used. As you can see from the examples there variables are highly depend highly on the use scale. No weighting is used here, but this is also possible from SAGA, id desired.
+
+Note, that the edges are no-data areas with relative elevation. TPI on the other hand uses the data from the edges, but in those areas there is less information as part of the coverage inside the radius is missing. Keep this in mind if you are calculating variables from DEM tiles! Use a buffer to counter this issue.
+
+**Example 2:**
+```{r tpi and relative elevation example, echo = T, results = 'hide'}
+# Calculate TPI and relative elevation with different radii
+lsp(in_dem = "test_dem.tif", tpi = "tpi10", tpi_radius = 10, rel_ele = "rel_ele10", rel_ele_radius = 10)
+
+# Default
+lsp(in_dem = "test_dem.tif", tpi = "tpi50", rel_ele = "rel_ele50") # note that the files are named after the default radius. It is good practice to name the file after the radius.
+
+# Import to R
+dem <- raster("dem.sdat")
+tpi10 <- raster("tpi10.sdat")
+tpi50 <- raster("tpi50.sdat") 
+
+rel10 <- raster("rel_ele10.sdat")
+rel50 <- raster("rel_ele50.sdat")
+
+
+# Plot (use 8bit color range)
+# 10 m
+plot(tpi10, col = colorRampPalette(c("blue","white", "red"))( 255 ), main = "TPI 10 m")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+plot(rel10, col = colorRampPalette(c("blue", "white"))(255 ), main = "Relative elevation 10 m")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+# 50 m
+plot(tpi50, col = colorRampPalette(c("blue","white", "red"))( 255 ), main = "TPI 50 m")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+plot(rel50, col = colorRampPalette(c("blue", "white"))( 255 ), main = "Relative elevation 50 m")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+```
+
+**Topographic Wetness Index**  
+
+All the TWI calculation steps have been automated. The function first fills the DEM, then calculates slope from filled DEM. Next, total catchment area is calculated with Freeman's (1991) multiple-flow-direction algorithm (tca.sgrd)*. The user can choose whether to use this directly, i.e. pseudo-specific catchment area, or whether to calculate flow-width and specific catchment are (set use_sca to TRUE).If this option is chosen the TCA then converted to specific catchment area (see Quinn et al. 1991). 
+
+*Note that Freeman's algorithm is nearly identical with Quinn et al. (1991), nut they use a different convergence parameter (Freeman = 1.1, Quinn et al. = 1.0), this is the slope exponent, which controls flow dispersion. Smaller parameter leads to more dispersal flow. Here, this parameter has been fixed to 1.1 following Freeman. Furthermore it should be noted that creek initiation threshold is not used. See discussion from Quinn et al. 1995, and Sorensen et al. 2006.
+
+**Example 3:**
+```{r twi example, echo = T, results = 'hide'}
+# Calculate slope from DEM
+lsp(in_dem = "test_dem.tif", twi = "test_twi_psca", use_sca = FALSE) # uses pseudo specific catchment area
+#lsp(in_dem = "nls_dem.tif", twi = "twi_sca", use_sca = TRUE) # use specific catchment area
+
+twi <- raster("test_twi_psca.sdat")
+plot(twi, col = colorRampPalette(c("white", "dark blue"))( 255 ))
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+```
+
+**Potential Incoming Solar Radiation**
+
+Lastly we'll calculate the potential incoming solar radiation. By default the lsp-function has been given the parameters which are used in Kemppinen et al. 2018 ESPL paper. You can change them to whatever you please by defining them (note the latitude parameter too!). Note that in the example I will use all the dates between March and September equinoxes.
+
+**Example 4:**  
+Calculate for PISR for summer. In the example I use a day step of 6, but you may want to opt a higher temporal resolution if you are calculating these variables for actual analysis (e.g. to be used as explanatory variables). I use March (20th) and September (23rd) equinoxes as the start and end date.  
+```{r pisr example, echo = T, results = 'hide'}
+# Summer radiation 
+lsp(in_dem = "test_dem.tif", pisr = "summer_pisr",
+    pisr_start_date = 20, 
+    pisr_end_date = 23, 
+    pisr_start_month = 3,
+    pisr_end_month = 9,
+    pisr_d_step = 6,
+    pisr_t_step = 4,
+    pisr_year = 2019) 
+
+# Import to R and plot
+pisr <- raster("summer_pisr.sdat")
+
+# Spring
+plot(pisr, col = colorRampPalette(c("blue", "white" ,"red"))( 255 ), main = "Summer PISR, kWh/m2")
+plot(hs, col = colorRampPalette(c("white", "black"))( 255 ), alpha = 0.5, add = T,legend = FALSE)
+
+```
+
+**All in one**
+Finally, for the lazy user, you can simply choose to calculate all lsp. Note that you can still change the parameters you wish to change. 
+```{r all-in-one, echo = T, results = 'hide'}
+lsp(in_dem = "test_dem.tif", calculate_all = TRUE, tpi_radius = 30, rel_ele_radius = 30)
+```
+
+
+#### References:
+**SAGA GIS**  
+Conrad, O., Bechtel, B., Bock, M., Dietrich, H., Fischer, E., Gerlitz, L., Wehberg, J., Wichmann, V., and Böhner, J. (2015): System for Automated Geoscientific Analyses (SAGA) v. 2.1.4, Geosci. Model Dev., 8, 1991-2007, doi:10.5194/gmd-8-1991-2015
+
+**RSAGA**  
+Brenning, A., 2008. Statistical geocomputing combining R and SAGA: The example of landslide susceptibility analysis with generalized additive models. In J. Boehner, T. Blaschke and L. Montanarella (eds.), SAGA - Seconds Out (= Hamburger Beitraege zur Physischen Geographie und Landschaftsoekologie, vol. 19), p. 23-32  
+
+also  
+Brenning A. et al. (2018). Package ‘RSAGA’, https://cran.r-project.org/web/packages/RSAGA/RSAGA.pdf
+
+**1 Slope**  
+Zevenbergen, L.W., Thorne, C.R., 1987. Quantitative-Analysis of Land Surface-Topography. Earth Surface Processes and Landforms 12, 47-56. https://doi.org/10.1002/esp.3290120107 .
+
+**TWI**  
+**2.1 Sink-fill**  
+Wang, L., Liu, H., 2006. An efficient method for identifying and filling surface depressions in digital elevation models for hydrologic analysis and modelling. International Journal of Geographical Information Science 20, 193-213, http://dx.doi.org/10.1080/13658810500433453
+ 
+**2.2 Flow-routing**  
+Freeman, T.G., 1991. Calculating catchment area with divergent flow based on a regular grid. Computers & Geosciences, 17, 413-422. https://doi.org/10.1016/0098-3004(91)90048-i   
+
+Quinn, P.F., Beven, K.J., Chevallier, P., Planchon, O. (1991): The prediction of hillslope flow paths for distributed hydrological modelling using digital terrain models. Hydrological Processes, 5:59-79  
+
+Quinn et should be referenced when choosing SCA, as the flow width is calculated with Quinn et al algorithm.
+See also Quinn et al. 1995.
+
+
+**2.3 Slope see 1. for reference**  (Note: calculated from filled DEM, so it is not the same than 1.)
+
+**TPI**  
+3.1 Guisan, A., Weiss, S.B., Weiss, A.D. (1999): GLM versus CCA spatial modeling of plant species distribution. Plant Ecology 143: 107-122.  
+3.2 Weiss, A.D. (2000): Topographic Position and Landforms Analysis. poster.  
+3.3 Wilson, J.P. & Gallant, J.C. (2000): Terrain Analysis - Principles and Applications  
+  
+**Relative elevation**
+4 Ashcroft MB, Gollan JR. 2012. Fine-resolution (25 m) topoclimatic grids of near-surface (5 cm) extreme temperatures and humidities across various habitats in a large (200-300 km) and diverse region. Int. J. Climatol. 32: 2134-2148.
+
+**Potential Incoming Solar Radiation**
+5  Bohner J, Antonic O. Chapter 8 Land-Surface Parameters Specific to Topo-Climatology. Geomorphometry - Concepts, Software, Applications [Internet]. Elsevier; 2009;195-226. Available from: http://dx.doi.org/10.1016/s0166-2481(08)00008-1
+
+
+**Supporting literature**  
+
+Kemppinen, J. et al., 2017. Modelling soil moisture in a high-latitude landscape using LiDAR and soil data. Earth Surface Processes and Landforms, 43(5), pp.1019–1031. Available at: http://dx.doi.org/10.1002/esp.4301.  
+
+Quinn, P.F., Beven, K.J. & Lamb, R., 1995. The in(a/tan/β) index: How to calculate it and how to use it within the topmodel framework. Hydrological Processes, 9(2), pp.161–182. Available at: http://dx.doi.org/10.1002/hyp.3360090204.  
+
+Sorensen, R., Zinko, U. & Seibert, J., 2006. On the calculation of the topographic wetness index: evaluation of different methods based on field observations. Hydrology and Earth System Sciences, 10(1), pp.101–112. Available at: http://dx.doi.org/10.5194/hess-10-101-2006.
+
+
