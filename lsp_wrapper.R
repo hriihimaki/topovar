@@ -11,15 +11,13 @@ lsp <- function(in_dem,
                 rel_ele_radius = 50,
                 rm_twi_tmp_files = FALSE,
                 use_sca = F,
-                pisr_start_date = 01,
-                pisr_start_month = 06,
-                pisr_end_date = 31,
-                pisr_end_month = 8,
-                pisr_d_step = 5 ,
+                pisr_start_date = 20, 
+                pisr_end_date = 23, 
+                pisr_start_month = 3,
+                pisr_end_month = 9,
+                pisr_d_step = 6,
                 pisr_t_step = 4,
-                pisr_latitude = 69,
-                pisr_year = 2019
-                ) 
+                pisr_year = 2019) 
   {
   # This function calculates desired lsp's from an input DEM (in_dem)
   # If an output filename is given the program calculates the specific LSP.
