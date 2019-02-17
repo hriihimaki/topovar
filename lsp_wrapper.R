@@ -17,7 +17,10 @@ lsp <- function(in_dem,
                 pisr_end_month = 9,
                 pisr_d_step = 6,
                 pisr_t_step = 4,
-                pisr_year = 2019) 
+                pisr_year = 2019,
+                pisr_latitude = 69,
+                log_file = "log_file.txt"
+                ) 
   {
   # This function calculates desired lsp's from an input DEM (in_dem)
   # If an output filename is given the program calculates the specific LSP.
@@ -27,6 +30,9 @@ lsp <- function(in_dem,
   require(RSAGA)
   require(raster)
   
+  try(if(file.exists(log_file)) stop("ERROR! Log file exists, give new name!"))
+  
+  sink(log_file)
   # Import digital elevation model if SAGA modules are being used (but not if only relative elevation is used)
   # Give default names if calculate_all is set to TRUE:
   if(calculate_all == TRUE){
@@ -264,5 +270,6 @@ lsp <- function(in_dem,
       
       }
     } # end of pisr
+  sink()
 } #end of lsp-function 
   
