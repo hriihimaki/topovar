@@ -39,7 +39,7 @@ lsp <- function(in_dem,
     slope = "slope"
     twi = "twi"
     pisr = "pisr"
-    
+    hillshade = "hs"
     # Name TPI and relative elevation with given radius parameter (or by default radius if none is given)
     tpi = paste0("tpi_", tpi_radius)
     rel_ele = paste0("relative_elevation_", rel_ele_radius)
